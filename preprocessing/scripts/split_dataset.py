@@ -38,7 +38,7 @@ def main():
     print(f"Split dir : {split_dir.resolve()}")
     print(f"Exists    : {raw_dir.exists()}")
 
-    image_exts = {".jpg", ".jpeg"}
+    image_exts = {".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG"}
 
     if not raw_dir.exists():
         print(f"Raw dataset folder not found: {raw_dir}")

@@ -13,6 +13,14 @@ from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from collections import Counter
 
 from albumentations.pytorch import ToTensorV2
+import sys
+from pathlib import Path
+
+# Add repo root to path so imports work when run directly
+_repo_root = Path(__file__).resolve().parents[2]
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
 from preprocessing.scripts.augment import get_train_transform, get_val_transform
 
 
@@ -24,8 +32,9 @@ class PlantVillageDataset(Dataset):
         self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
         self.samples = []
         for c in self.classes:
-            for p in sorted((self.root / c).glob("*.jpg")):
-                self.samples.append((p, self.class_to_idx[c]))
+            for ext in ["*.JPG", "*.jpg", "*.JPEG", "*.jpeg", "*.PNG", "*.png"]:
+                for p in sorted((self.root / c).glob(ext)):
+                    self.samples.append((p, self.class_to_idx[c]))
         print(f"Loaded {len(self.samples)} images from {self.root}")
 
     def __len__(self):

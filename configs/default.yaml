@@ -26,14 +26,24 @@ augmentation:
 backbone:
   name: efficientnet_b2
   pretrained: true
-  out_channels: 352
+  out_channels: 1408
   feature_map_size: 8
 
 lada:
-  in_channels: 352
+  in_channels: 1408
   sla_kernel_size: 7
-  dcg_hidden_dim: 128
+  dcg_hidden_dim: 256
   dropout: 0.1
+
+training:
+  epochs: 25
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  optimizer: adamw
+  freeze_backbone_epochs: 0
+  use_amp: true
+  cutmix_alpha: 1.0
+  checkpoint_dir: checkpoints
 
 classes:
   Tomato___Bacterial_spot: 1702

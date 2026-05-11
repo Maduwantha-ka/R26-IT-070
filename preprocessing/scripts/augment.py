@@ -134,7 +134,10 @@ if __name__ == "__main__":
     # pick first class and image
     try:
         first_class = next(train_dir.iterdir())
-        first_image = next(first_class.glob("*.jpg"))
+        first_image = next(
+            f for ext in ["*.JPG", "*.jpg", "*.JPEG", "*.jpeg"]
+            for f in first_class.glob(ext)
+        )
     except StopIteration:
         print("No images found in training folder — skipping demo")
         sys.exit(0)

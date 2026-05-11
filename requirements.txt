@@ -5,6 +5,7 @@ pillow==10.2.0
 # ML frameworks
 torch==2.2.1
 torchvision==0.17.1
+timm==0.9.12
 
 # Augmentation and transforms (pinned to avoid signature drift)
 albumentations==1.3.1
