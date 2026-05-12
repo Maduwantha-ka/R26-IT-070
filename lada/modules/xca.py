@@ -60,7 +60,7 @@ class XCA(nn.Module):
         attn = torch.bmm(
             q.unsqueeze(1),  # (B, 1, reduced_dim)
             k.unsqueeze(2)   # (B, reduced_dim, 1)
-        ).squeeze()  # (B,)
+        ).squeeze(-1).squeeze(-1)  # (B,)
         attn = attn * self.scale
         attn = F.softmax(attn, dim=0)  # normalize across batch
         attn = self.dropout(attn)
