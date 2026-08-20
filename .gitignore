@@ -1,0 +1,29 @@
+# Dataset — never commit images to GitHub
+data/
+datasets/
+*.csv
+*.json
+
+# Model checkpoints
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+# Notebooks output
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
