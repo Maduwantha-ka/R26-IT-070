@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/custom_button.dart';
 import 'history_screen.dart';
 import 'image_preview_screen.dart';
+import 'guided_capture_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,10 +22,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _pickImage(ImageSource source) async {
     setState(() => _isPicking = true);
     try {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        imageQuality: 90,
-      );
+      XFile? image;
+      if (source == ImageSource.camera) {
+        image = await Navigator.push<XFile?>(
+          context,
+          MaterialPageRoute(builder: (_) => const GuidedCaptureScreen()),
+        );
+      } else {
+        image = await _picker.pickImage(
+          source: source,
+          imageQuality: 90,
+        );
+      }
 
       if (image != null && mounted) {
         final processedData = ProcessedImageData(
