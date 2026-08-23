@@ -27,3 +27,9 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test caches
+.pytest_cache/
+
+# Local/temporary output images at the root level (preserves docs/*.png)
+/*.png
