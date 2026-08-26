@@ -5,7 +5,7 @@ import '../models/disease_result.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_button.dart';
 import 'history_screen.dart';
-import 'image_preview_screen.dart';
+import 'image_choice_screen.dart';
 import 'guided_capture_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -44,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ImagePreviewScreen(imageData: processedData),
+            builder: (_) => ImageChoiceScreen(imageData: processedData),
           ),
         );
       }
@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ImagePreviewScreen(imageData: processedData),
+        builder: (_) => ImageChoiceScreen(imageData: processedData),
       ),
     );
   }
