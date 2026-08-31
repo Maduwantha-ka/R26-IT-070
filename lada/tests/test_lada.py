@@ -73,6 +73,24 @@ def test_xca_learns_channel_relationships():
     assert not torch.isnan(out).any()
 
 
+def test_xca_batch_independence():
+    """Test that XCA output is batch-independent (no interactions between batch elements)."""
+    x1 = torch.randn(1, 352, 8, 8)
+    x2 = torch.randn(1, 352, 8, 8)
+    x_batch = torch.cat([x1, x2], dim=0)
+
+    xca = XCA(in_channels=352, dropout=0.0)
+    xca.eval()
+
+    with torch.no_grad():
+        out_batch = xca(x_batch)
+        out1 = xca(x1)
+        out2 = xca(x2)
+        out_individual = torch.cat([out1, out2], dim=0)
+
+    assert torch.allclose(out_batch, out_individual, atol=1e-6)
+
+
 def test_dcg_output_shape():
     """Test DCG module output shape."""
     batch_size, channels, h, w = 4, 352, 8, 8

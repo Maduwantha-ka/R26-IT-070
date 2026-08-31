@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/disease_result.dart';
 import '../theme/app_theme.dart';
-import '../widgets/badge_chip.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/image_card.dart';
 import '../widgets/section_header.dart';
@@ -48,13 +47,10 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Display used image (Enhanced or Original)
+              // Display Leaf Image
               ImageDisplayCard(
                 imageData: diseaseResult.imageData,
                 height: 240,
-                badgeOverlay: LadaBadgeChip(
-                  isEnhanced: diseaseResult.imageData.isEnhancedByLada,
-                ),
               ),
 
               const SizedBox(height: 20),

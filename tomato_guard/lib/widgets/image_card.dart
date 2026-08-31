@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/disease_result.dart';
 import '../theme/app_theme.dart';
-import 'badge_chip.dart';
 
 class ImageDisplayCard extends StatelessWidget {
   final ProcessedImageData imageData;
@@ -60,12 +59,12 @@ class ImageDisplayCard extends StatelessWidget {
             ),
 
             // Top Badge
-            Positioned(
-              top: 14,
-              left: 14,
-              child: badgeOverlay ??
-                  LadaBadgeChip(isEnhanced: imageData.isEnhancedByLada),
-            ),
+            if (badgeOverlay != null)
+              Positioned(
+                top: 14,
+                left: 14,
+                child: badgeOverlay!,
+              ),
           ],
         ),
       ),

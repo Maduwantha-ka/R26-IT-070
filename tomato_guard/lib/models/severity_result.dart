@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum SeverityLevel {
   mild,
   moderate,
@@ -39,6 +41,7 @@ class SeverityResult {
   final int totalLesionCount;
   final String primarySymptom;
   final String leafTissueHealthScore; // e.g. "75.5/100"
+  final Uint8List? maskImageBytes;
 
   const SeverityResult({
     required this.level,
@@ -46,5 +49,6 @@ class SeverityResult {
     required this.totalLesionCount,
     required this.primarySymptom,
     required this.leafTissueHealthScore,
+    this.maskImageBytes,
   });
 }

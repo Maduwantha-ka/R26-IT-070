@@ -3,7 +3,6 @@ import '../models/scan_record.dart';
 import '../services/database_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/history_card.dart';
-import '../widgets/section_header.dart';
 import 'classification_screen.dart';
 
 class HistoryScreen extends StatefulWidget {

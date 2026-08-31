@@ -6,14 +6,10 @@ import 'severity_result.dart';
 class ProcessedImageData {
   final File? originalFile;
   final Uint8List? imageBytes;
-  final bool isEnhancedByLada;
-  final String? enhancementNote;
 
   const ProcessedImageData({
     this.originalFile,
     this.imageBytes,
-    this.isEnhancedByLada = false,
-    this.enhancementNote,
   });
 }
 

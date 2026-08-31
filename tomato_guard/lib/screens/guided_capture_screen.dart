@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/quality_analyzer.dart';
+import '../services/leaf_detector.dart';
 import '../theme/app_theme.dart';
 
 class GuidedCaptureScreen extends StatefulWidget {
@@ -16,17 +17,19 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   
+  final LeafDetector _leafDetector = LeafDetector();
+  BoundingBox? _currentBox;
+
   bool _isCameraInitialized = false;
   bool _isPermissionGranted = false;
   bool _isAnalyzing = false;
   bool _isTakingPicture = false;
 
   QualityAnalysisResult _currentQuality = const QualityAnalysisResult(
-    CaptureQuality.fair, 
-    "Analyzing environment..."
+    CaptureQuality.poor, 
+    "Loading TFLite model..."
   );
 
-  // Analyze every 350ms to keep UI smooth
   DateTime _lastAnalysisTime = DateTime.now();
   final int _analysisIntervalMs = 350;
 
@@ -34,7 +37,19 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkPermissionsAndInit();
+    _initSystem();
+  }
+
+  Future<void> _initSystem() async {
+    // 1. Load the YOLOv8n model
+    await _leafDetector.loadModel();
+    if (mounted) {
+      setState(() {
+        _currentQuality = const QualityAnalysisResult(CaptureQuality.poor, "Initializing camera...");
+      });
+    }
+    // 2. Setup Camera
+    await _checkPermissionsAndInit();
   }
 
   @override
@@ -42,6 +57,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
+    _leafDetector.dispose();
     super.dispose();
   }
 
@@ -91,29 +107,38 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
       description,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
+      imageFormatGroup: ImageFormatGroup.yuv420, // Fast on Android
     );
 
     try {
       await _cameraController!.initialize();
       setState(() => _isCameraInitialized = true);
       
-      // Start Image Stream for real-time analysis
       _cameraController!.startImageStream((CameraImage image) async {
-        if (_isAnalyzing) return;
+        if (_isAnalyzing || _isTakingPicture) return;
 
         final now = DateTime.now();
         if (now.difference(_lastAnalysisTime).inMilliseconds < _analysisIntervalMs) {
-          return; // skip frame to save CPU
+          return;
         }
 
         _isAnalyzing = true;
         _lastAnalysisTime = now;
 
         try {
-          final result = await QualityAnalyzer.analyze(image);
+          // 1. Detect Leaf via YOLOv8n
+          final BoundingBox? box = await _leafDetector.detect(image);
+          
+          // 2. Analyze quality rules (Area, Centering, Lighting, Blur)
+          final result = await QualityAnalyzer.analyze(image, box);
+          
           if (mounted) {
-            setState(() => _currentQuality = result);
+            setState(() {
+              _currentBox = box;
+              _currentQuality = result;
+            });
+
+            // We no longer do auto-capture, user must press the button.
           }
         } catch (e) {
           debugPrint('Error analyzing frame: $e');
@@ -134,13 +159,10 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
     setState(() => _isTakingPicture = true);
 
     try {
-      // Stop stream to free resources during capture
       await _cameraController!.stopImageStream();
-      
       final XFile imageFile = await _cameraController!.takePicture();
       
       if (mounted) {
-        // Return the captured file to the caller
         Navigator.pop(context, imageFile);
       }
     } catch (e) {
@@ -152,8 +174,9 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
             backgroundColor: AppTheme.severitySevere,
           ),
         );
-        setState(() => _isTakingPicture = false);
-        // Restart stream
+        setState(() {
+          _isTakingPicture = false;
+        });
         _cameraController?.startImageStream((image) {});
       }
     }
@@ -162,9 +185,9 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
   Color _getQualityColor() {
     switch (_currentQuality.quality) {
       case CaptureQuality.good:
-        return AppTheme.severityMild; // Greenish
+        return AppTheme.severityMild; // Green
       case CaptureQuality.fair:
-        return AppTheme.severityModerate; // Yellow/Orange
+        return AppTheme.severityModerate; // Yellow
       case CaptureQuality.poor:
         return AppTheme.severitySevere; // Red
     }
@@ -186,27 +209,45 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
     }
 
     final size = MediaQuery.of(context).size;
+    final double scaleX = size.width;
+    final double scaleY = size.height;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Camera Preview
+          // 1. Full Screen Camera Preview
           CameraPreview(_cameraController!),
 
-          // 2. Overlay with Target Box
-          _buildOverlay(size),
+          // 2. Center Target Guide / Viewfinder Reticle
+          CustomPaint(
+            painter: CenterReticlePainter(
+              color: _getQualityColor().withOpacity(0.85),
+              isGood: _currentQuality.quality == CaptureQuality.good,
+            ),
+          ),
 
-          // 3. Status Badge (Top)
+          // 3. Dynamic Bounding Box Overlay
+          if (_currentBox != null)
+            CustomPaint(
+              painter: BoundingBoxPainter(
+                box: _currentBox!,
+                color: _getQualityColor(),
+                scaleX: scaleX,
+                scaleY: scaleY,
+              ),
+            ),
+
+          // 3. Status Banner
           Positioned(
-            top: 50,
-            left: 20,
+            top: 52,
+            left: 64,
             right: 20,
             child: _buildStatusBanner(),
           ),
 
-          // 4. Capture Controls (Bottom)
+          // 5. Capture Controls
           Positioned(
             bottom: 40,
             left: 0,
@@ -214,13 +255,19 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
             child: _buildCaptureControls(),
           ),
           
-          // 5. Back Button (Top Left)
+          // 6. Back Button
           Positioned(
-            top: 50,
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 30),
-              onPressed: () => Navigator.pop(context),
+            top: 48,
+            left: 12,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.4),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
           )
         ],
@@ -228,80 +275,56 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
     );
   }
 
-  Widget _buildOverlay(Size size) {
-    final boxColor = _getQualityColor();
-    return ColorFiltered(
-      colorFilter: ColorFilter.mode(
-        Colors.black.withOpacity(0.5),
-        BlendMode.srcOut,
-      ),
-      child: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              color: Colors.transparent,
-            ),
-            child: Align(
-              alignment: Alignment.center,
-              child: Container(
-                width: size.width * 0.75,
-                height: size.height * 0.45,
-                decoration: BoxDecoration(
-                  color: Colors.black, // Punches a hole
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-          ),
-          // Bounding Box Borders
-          Align(
-            alignment: Alignment.center,
-            child: Container(
-              width: size.width * 0.75,
-              height: size.height * 0.45,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: boxColor,
-                  width: 3.0,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildStatusBanner() {
     final boxColor = _getQualityColor();
-    
+    final String confStr = _currentBox != null 
+        ? " (${(_currentBox!.confidence * 100.0).clamp(0.0, 100.0).toStringAsFixed(1)}%)" 
+        : "";
+    final displayMessage = "${_currentQuality.message}$confStr";
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      margin: const EdgeInsets.only(top: 40), // avoid back button
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: boxColor.withOpacity(0.8), width: 1.5),
+        color: Colors.black.withOpacity(0.35), // Transparent glass backdrop
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: boxColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: boxColor.withOpacity(0.25),
+            blurRadius: 12,
+            spreadRadius: 1,
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            _currentQuality.quality == CaptureQuality.good ? Icons.check_circle : Icons.info_outline,
+            _currentQuality.quality == CaptureQuality.good
+                ? Icons.check_circle_rounded
+                : Icons.center_focus_strong_rounded,
             color: boxColor,
-            size: 24,
+            size: 20,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _currentQuality.message,
+              displayMessage,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
+                shadows: [
+                  Shadow(
+                    color: Colors.black87,
+                    offset: Offset(0, 1),
+                    blurRadius: 3,
+                  ),
+                ],
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -312,6 +335,11 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
   Widget _buildCaptureControls() {
     final isGood = _currentQuality.quality == CaptureQuality.good;
     
+    // Hide capture button if not good
+    if (!isGood && !_isTakingPicture) {
+      return const SizedBox(height: 100);
+    }
+
     return Column(
       children: [
         if (_isTakingPicture)
@@ -325,7 +353,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isGood ? AppTheme.primaryDark : Colors.white,
+                  color: AppTheme.primaryDark,
                   width: 4,
                 ),
               ),
@@ -333,25 +361,16 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
                 child: Container(
                   height: 65,
                   width: 65,
-                  decoration: BoxDecoration(
-                    color: isGood ? AppTheme.primaryDark : Colors.white,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.primaryDark,
                     shape: BoxShape.circle,
                   ),
-                  child: isGood
-                      ? const Icon(Icons.camera_alt, color: Colors.white, size: 30)
-                      : null,
+                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 30),
                 ),
               ),
             ),
           ),
         const SizedBox(height: 16),
-        const Text(
-          'Keep the leaf inside the box',
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 14,
-          ),
-        ),
       ],
     );
   }
@@ -372,12 +391,6 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
                 'Camera Access Required',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'We need access to your camera to guide you in taking the best possible photo of your crop.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textMuted),
-              ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () => openAppSettings(),
@@ -392,5 +405,153 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
         ),
       ),
     );
+  }
+}
+
+// Custom Painter to draw YOLO bounding box over the camera preview
+class BoundingBoxPainter extends CustomPainter {
+  final BoundingBox box;
+  final Color color;
+  final double scaleX;
+  final double scaleY;
+
+  BoundingBoxPainter({
+    required this.box, 
+    required this.color,
+    required this.scaleX,
+    required this.scaleY,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+
+    final fillPaint = Paint()
+      ..color = color.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+
+    final rect = Rect.fromLTWH(
+      box.x * size.width, 
+      box.y * size.height, 
+      box.width * size.width, 
+      box.height * size.height
+    );
+
+    // Draw filled transparent background
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12)), fillPaint);
+    // Draw thick border
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12)), paint);
+
+    // Draw live confidence score badge
+    final double scorePercent = (box.confidence * 100.0).clamp(0.0, 100.0);
+    final String labelText = "Tomato Leaf ${scorePercent.toStringAsFixed(1)}%";
+    final TextSpan span = TextSpan(
+      text: labelText,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    final TextPainter tp = TextPainter(
+      text: span,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    const double padH = 8.0;
+    const double padV = 4.0;
+    final double bgW = tp.width + (padH * 2);
+    final double bgH = tp.height + (padV * 2);
+    final double badgeLeft = rect.left.clamp(0.0, (size.width - bgW).clamp(0.0, size.width));
+    final double badgeTop = (rect.top - bgH - 6).clamp(0.0, (size.height - bgH).clamp(0.0, size.height));
+
+    final RRect badgeRRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(badgeLeft, badgeTop, bgW, bgH),
+      const Radius.circular(6),
+    );
+    final Paint badgeBgPaint = Paint()
+      ..color = color.withOpacity(0.9)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawRRect(badgeRRect, badgeBgPaint);
+    tp.paint(canvas, Offset(badgeLeft + padH, badgeTop + padV));
+  }
+
+  @override
+  bool shouldRepaint(covariant BoundingBoxPainter oldDelegate) {
+    return oldDelegate.box != box || oldDelegate.color != color;
+  }
+}
+
+// Custom Painter to draw a clean center target reticle (corner guides)
+class CenterReticlePainter extends CustomPainter {
+  final Color color;
+  final bool isGood;
+
+  CenterReticlePainter({required this.color, required this.isGood});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double targetWidth = size.width * 0.68;
+    final double targetHeight = size.height * 0.48;
+    final double left = (size.width - targetWidth) / 2;
+    final double top = (size.height - targetHeight) / 2;
+    final double right = left + targetWidth;
+    final double bottom = top + targetHeight;
+
+    final double cornerLength = 26.0;
+    final double radius = 14.0;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isGood ? 3.5 : 2.0
+      ..strokeCap = StrokeCap.round;
+
+    // Top-Left Corner
+    final pathTL = Path()
+      ..moveTo(left, top + cornerLength)
+      ..lineTo(left, top + radius)
+      ..arcToPoint(Offset(left + radius, top), radius: Radius.circular(radius))
+      ..lineTo(left + cornerLength, top);
+    canvas.drawPath(pathTL, paint);
+
+    // Top-Right Corner
+    final pathTR = Path()
+      ..moveTo(right - cornerLength, top)
+      ..lineTo(right - radius, top)
+      ..arcToPoint(Offset(right, top + radius), radius: Radius.circular(radius))
+      ..lineTo(right, top + cornerLength);
+    canvas.drawPath(pathTR, paint);
+
+    // Bottom-Left Corner
+    final pathBL = Path()
+      ..moveTo(left, bottom - cornerLength)
+      ..lineTo(left, bottom - radius)
+      ..arcToPoint(Offset(left + radius, bottom), radius: Radius.circular(radius))
+      ..lineTo(left + cornerLength, bottom);
+    canvas.drawPath(pathBL, paint);
+
+    // Bottom-Right Corner
+    final pathBR = Path()
+      ..moveTo(right - cornerLength, bottom)
+      ..lineTo(right - radius, bottom)
+      ..arcToPoint(Offset(right, bottom - radius), radius: Radius.circular(radius))
+      ..lineTo(right, bottom - cornerLength);
+    canvas.drawPath(pathBR, paint);
+
+    // Center Crosshair / Dot indicator
+    final centerPaint = Paint()
+      ..color = color.withOpacity(0.4)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), isGood ? 4.0 : 2.5, centerPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CenterReticlePainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.isGood != isGood;
   }
 }

@@ -2,10 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/disease_result.dart';
+import '../services/disease_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_button.dart';
 import 'history_screen.dart';
-import 'image_choice_screen.dart';
+import 'classification_screen.dart';
 import 'guided_capture_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,10 +18,37 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
-  bool _isPicking = false;
+  bool _isProcessing = false;
+
+  Future<void> _processAndNavigate(ProcessedImageData processedData) async {
+    setState(() => _isProcessing = true);
+    try {
+      final diseaseResult = await DiseaseService.classifyImage(processedData);
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ClassificationScreen(diseaseResult: diseaseResult),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Analysis failed: $e'),
+            backgroundColor: AppTheme.severitySevere,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
-    setState(() => _isPicking = true);
     try {
       XFile? image;
       if (source == ImageSource.camera) {
@@ -38,15 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (image != null && mounted) {
         final processedData = ProcessedImageData(
           originalFile: File(image.path),
-          isEnhancedByLada: false,
         );
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ImageChoiceScreen(imageData: processedData),
-          ),
-        );
+        await _processAndNavigate(processedData);
       }
     } catch (e) {
       if (mounted) {
@@ -57,24 +78,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isPicking = false);
-      }
     }
   }
 
   void _useSampleImage() {
-    final processedData = const ProcessedImageData(
-      isEnhancedByLada: false,
-    );
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ImageChoiceScreen(imageData: processedData),
-      ),
-    );
+    final processedData = const ProcessedImageData();
+    _processAndNavigate(processedData);
   }
 
   @override
@@ -159,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Powered by EfficientNet-B2 & LADA Augmentation Pipeline',
+                        'Powered by EfficientNet-B2 & TFLite Segmentation Engine',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
@@ -181,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildFeatureBadge(Icons.auto_awesome, 'LADA Enhanced'),
+                    _buildFeatureBadge(Icons.pie_chart_outline, 'Segmentation & Severity'),
                     const SizedBox(width: 8),
                     _buildFeatureBadge(Icons.analytics_outlined, 'AI Diagnosis'),
                     const SizedBox(width: 8),
@@ -198,8 +207,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   PrimaryButton(
                     label: 'Take Photo',
                     icon: Icons.camera_alt_outlined,
-                    isLoading: _isPicking,
-                    onPressed: () => _pickImage(ImageSource.camera),
+                    isLoading: _isProcessing,
+                    onPressed: _isProcessing ? () {} : () => _pickImage(ImageSource.camera),
                   ),
                   const SizedBox(height: 14),
                   SecondaryButton(
