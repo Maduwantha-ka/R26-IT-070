@@ -2,12 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/disease_result.dart';
-import '../services/disease_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_button.dart';
 import 'history_screen.dart';
-import 'classification_screen.dart';
 import 'guided_capture_screen.dart';
+import 'image_choice_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,35 +17,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
-  bool _isProcessing = false;
-
-  Future<void> _processAndNavigate(ProcessedImageData processedData) async {
-    setState(() => _isProcessing = true);
-    try {
-      final diseaseResult = await DiseaseService.classifyImage(processedData);
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ClassificationScreen(diseaseResult: diseaseResult),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Analysis failed: $e'),
-            backgroundColor: AppTheme.severitySevere,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
-    }
-  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -67,7 +37,12 @@ class _HomeScreenState extends State<HomeScreen> {
         final processedData = ProcessedImageData(
           originalFile: File(image.path),
         );
-        await _processAndNavigate(processedData);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ImageChoiceScreen(imageData: processedData),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -79,11 +54,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-  }
-
-  void _useSampleImage() {
-    final processedData = const ProcessedImageData();
-    _processAndNavigate(processedData);
   }
 
   @override
@@ -114,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
           child: Column(
             children: [
@@ -199,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               // Primary Action Buttons
               Column(
@@ -207,8 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   PrimaryButton(
                     label: 'Take Photo',
                     icon: Icons.camera_alt_outlined,
-                    isLoading: _isProcessing,
-                    onPressed: _isProcessing ? () {} : () => _pickImage(ImageSource.camera),
+                    onPressed: () => _pickImage(ImageSource.camera),
                   ),
                   const SizedBox(height: 14),
                   SecondaryButton(
@@ -216,25 +185,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.photo_library_outlined,
                     onPressed: () => _pickImage(ImageSource.gallery),
                   ),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: _useSampleImage,
-                    icon: const Icon(Icons.science_outlined,
-                        color: AppTheme.primaryDark, size: 18),
-                    label: const Text(
-                      'Use Preset Tomato Leaf Sample',
-                      style: TextStyle(
-                        color: AppTheme.primaryDark,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
                 ],
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
             ],
           ),
         ),

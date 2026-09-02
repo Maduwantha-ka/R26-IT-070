@@ -3,6 +3,8 @@ import '../models/disease_result.dart';
 import '../models/treatment_info.dart';
 import '../theme/app_theme.dart';
 import '../widgets/section_header.dart';
+import '../widgets/custom_button.dart';
+import 'segmentation_screen.dart';
 
 class TreatmentScreen extends StatelessWidget {
   final DiseaseResult diseaseResult;
@@ -100,25 +102,25 @@ class TreatmentScreen extends StatelessWidget {
               // Section 2: Organic Treatment
               const SectionHeader(
                 title: 'Organic Treatment',
-                subtitle: 'Eco-friendly and biological bio-fungicides',
-                icon: Icons.spa_outlined,
+                subtitle: 'Eco-friendly and biological interventions',
+                icon: Icons.nature_people_outlined,
               ),
               const SizedBox(height: 8),
               ...treatment.organicTreatments.map(
                 (item) => _buildTreatmentCard(
                   context: context,
                   item: item,
-                  accentColor: AppTheme.primary,
-                  icon: Icons.sanitizer_outlined,
+                  accentColor: AppTheme.primaryLight,
+                  icon: Icons.eco,
                 ),
               ),
 
               const SizedBox(height: 24),
 
-              // Section 3: Chemical Treatment
+              // Section 3: Chemical Control
               const SectionHeader(
-                title: 'Chemical Treatment',
-                subtitle: 'Fungicides for severe infection outbreaks',
+                title: 'Chemical Control',
+                subtitle: 'Targeted fungicides, pesticides, and dosages',
                 icon: Icons.science_outlined,
               ),
               const SizedBox(height: 8),
@@ -127,8 +129,26 @@ class TreatmentScreen extends StatelessWidget {
                   context: context,
                   item: item,
                   accentColor: AppTheme.severityModerate,
-                  icon: Icons.biotech_outlined,
+                  icon: Icons.warning_amber_rounded,
                 ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // Action Buttons for Flow
+              PrimaryButton(
+                label: 'View Severity & Lesion Mask',
+                icon: Icons.pie_chart_outline_rounded,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SegmentationScreen(
+                        diseaseResult: diseaseResult,
+                      ),
+                    ),
+                  );
+                },
               ),
 
               const SizedBox(height: 20),

@@ -19,7 +19,7 @@ class QualityAnalyzer {
     
     // If environment is poor (blur, lighting), return that first (unless no leaf is even detected)
     
-    if (leafBox == null || leafBox.confidence < 0.80) {
+    if (leafBox == null || leafBox.confidence < 0.60) {
       return const QualityAnalysisResult(CaptureQuality.poor, "No tomato leaf detected. Point the camera at a tomato leaf.");
     }
 

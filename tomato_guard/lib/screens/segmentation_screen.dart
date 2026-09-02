@@ -5,6 +5,8 @@ import '../theme/app_theme.dart';
 import '../widgets/badge_chip.dart';
 import '../widgets/section_header.dart';
 import '../widgets/segmented_image_view.dart';
+import '../widgets/custom_button.dart';
+import 'treatment_screen.dart';
 
 class SegmentationScreen extends StatelessWidget {
   final DiseaseResult diseaseResult;
@@ -49,11 +51,11 @@ class SegmentationScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Infection Severity',
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.textDark,
@@ -65,16 +67,46 @@ class SegmentationScreen extends StatelessWidget {
                         ],
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+
+                      // LADA Channel Enhancement Banner
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.auto_awesome, size: 16, color: Color(0xFF2E7D32)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                diseaseResult.isLadaEnhanced
+                                    ? 'LADA SLA Multi-Channel Attention Active'
+                                    : 'Baseline ALAS-Net Segmentation',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2E7D32),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
 
                       // Affected Area Percentage Gauge Card
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryDark.withOpacity(0.06),
+                          color: AppTheme.primaryDark.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: AppTheme.primaryLight.withOpacity(0.3),
+                            color: AppTheme.primaryLight.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -171,6 +203,24 @@ class SegmentationScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Action Buttons
+              PrimaryButton(
+                label: 'View Treatment Recommendations',
+                icon: Icons.medical_services_outlined,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TreatmentScreen(
+                        diseaseResult: diseaseResult,
+                      ),
+                    ),
+                  );
+                },
               ),
 
               const SizedBox(height: 20),

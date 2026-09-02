@@ -31,7 +31,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
   );
 
   DateTime _lastAnalysisTime = DateTime.now();
-  final int _analysisIntervalMs = 350;
+  final int _analysisIntervalMs = 150;
 
   @override
   void initState() {
@@ -105,9 +105,9 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
   Future<void> _initCamera(CameraDescription description) async {
     _cameraController = CameraController(
       description,
-      ResolutionPreset.high,
+      ResolutionPreset.medium, // Optimal 60fps mobile preview
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420, // Fast on Android
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
 
     try {
@@ -126,7 +126,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
         _lastAnalysisTime = now;
 
         try {
-          // 1. Detect Leaf via YOLOv8n
+          // 1. Detect Leaf via fast YOLO
           final BoundingBox? box = await _leafDetector.detect(image);
           
           // 2. Analyze quality rules (Area, Centering, Lighting, Blur)
@@ -134,11 +134,20 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> with WidgetsB
           
           if (mounted) {
             setState(() {
-              _currentBox = box;
+              // Smooth box transition if box exists
+              if (box != null && _currentBox != null) {
+                _currentBox = BoundingBox(
+                  x: _currentBox!.x * 0.3 + box.x * 0.7,
+                  y: _currentBox!.y * 0.3 + box.y * 0.7,
+                  width: _currentBox!.width * 0.3 + box.width * 0.7,
+                  height: _currentBox!.height * 0.3 + box.height * 0.7,
+                  confidence: box.confidence,
+                );
+              } else {
+                _currentBox = box;
+              }
               _currentQuality = result;
             });
-
-            // We no longer do auto-capture, user must press the button.
           }
         } catch (e) {
           debugPrint('Error analyzing frame: $e');

@@ -21,6 +21,7 @@ class DiseaseResult {
   final ProcessedImageData imageData;
   final SeverityResult severity;
   final TreatmentInfo treatment;
+  final bool isLadaEnhanced;
 
   const DiseaseResult({
     required this.diseaseName,
@@ -30,5 +31,6 @@ class DiseaseResult {
     required this.imageData,
     required this.severity,
     required this.treatment,
+    this.isLadaEnhanced = false,
   });
 }
