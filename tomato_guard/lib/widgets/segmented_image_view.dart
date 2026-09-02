@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/disease_result.dart';
 import '../models/severity_result.dart';
-import '../theme/app_theme.dart';
 import 'image_card.dart';
 
 class SegmentedImageView extends StatelessWidget {
@@ -41,35 +40,6 @@ class SegmentedImageView extends StatelessWidget {
                 ),
               ),
             ),
-
-          // Overlay Legend Badge
-          Positioned(
-            bottom: 12,
-            right: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.75),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.primaryLight, width: 1),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.layers, color: AppTheme.primaryLight, size: 14),
-                  SizedBox(width: 6),
-                  Text(
-                    'Red Mask: AI Disease Spot Overlay',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );

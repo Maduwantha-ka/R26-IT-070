@@ -10,6 +10,7 @@ import '../models/severity_result.dart';
 import '../models/treatment_info.dart';
 import 'lada_module.dart';
 import 'segmentation_service.dart';
+import 'treatment_lookup_service.dart';
 
 class DetectionResult {
   final Rect boundingBox;
@@ -20,7 +21,7 @@ class DetectionResult {
 }
 
 class DiseaseService {
-  /// Disease Detection with YOLOv8 & Segmentation with ALAS-Net
+  /// Disease Detection with YOLOv8, Segmentation with ALAS-Net, and DOA Treatment Lookup
   static Future<DiseaseResult> classifyImage(
     ProcessedImageData imageData, {
     bool enhanceWithLada = true,
@@ -66,6 +67,12 @@ class DiseaseService {
       );
     }
 
+    // Step 3: Lookup exact treatment guidelines from DOA dataset based on disease & severity
+    final treatment = await TreatmentLookupService.getTreatment(
+      diseaseName: matchedDisease.diseaseName,
+      severityLevel: finalSeverity.level,
+    );
+
     return DiseaseResult(
       diseaseName: matchedDisease.diseaseName,
       scientificName: matchedDisease.scientificName,
@@ -73,7 +80,7 @@ class DiseaseService {
       overview: matchedDisease.overview,
       imageData: finalImageData,
       severity: finalSeverity,
-      treatment: matchedDisease.treatment,
+      treatment: treatment,
       isLadaEnhanced: enhanceWithLada,
     );
   }

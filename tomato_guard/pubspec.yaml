@@ -34,3 +34,5 @@ flutter:
     - assets/models/tomato_leaf_yolov8.tflite
     - assets/models/alas_net_NO_SLA.tflite
     - assets/models/labels.txt
+    - assets/data/treatment_lookup.json
+    - assets/data/Treatment_Lookup_Table.xlsx

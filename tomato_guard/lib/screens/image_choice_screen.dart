@@ -15,14 +15,16 @@ class ImageChoiceScreen extends StatefulWidget {
 
 class _ImageChoiceScreenState extends State<ImageChoiceScreen> {
   bool _isProcessing = false;
+  bool _isEnhancingWithLada = false;
   String _processingStage = '';
 
   Future<void> _runAnalysis({required bool enhanceWithLada}) async {
     setState(() {
       _isProcessing = true;
+      _isEnhancingWithLada = enhanceWithLada;
       _processingStage = enhanceWithLada
-          ? 'Applying LADA Channel Transformation (L*a*b*, ExG, CLAHE)...'
-          : 'Running Standard Diagnosis...';
+          ? 'Applying LADA Channel Transformation...'
+          : 'Analyzing leaf health and symptoms...';
     });
 
     try {
@@ -301,9 +303,9 @@ class _ImageChoiceScreenState extends State<ImageChoiceScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            const Text(
-              'LADA Enhancement',
-              style: TextStyle(
+            Text(
+              _isEnhancingWithLada ? 'LADA Enhancement' : 'Classifying',
+              style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textDark,

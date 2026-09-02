@@ -131,58 +131,113 @@ class SegmentationService {
       interpreter.close();
     }
 
-    // Create a 256x256 RGBA mask overlay image
+    // Output: Decode lesion mask by isolating symptomatic/necrotic lesions inside the leaf
     final img.Image maskImage = img.Image(
       width: targetSize,
       height: targetSize,
       numChannels: 4,
     );
 
-    int diseasePixels = 0;
-    const int totalPixels = targetSize * targetSize;
+    // Step 1: Identify healthy leaf tissue predicted by ALAS-Net
+    final List<List<double>> probMap = List.generate(targetSize, (_) => List.filled(targetSize, 0.0));
+    final List<List<bool>> isHealthyFoliage = List.generate(targetSize, (_) => List.filled(targetSize, false));
+    int healthyPixels = 0;
 
     for (int y = 0; y < targetSize; y++) {
       for (int x = 0; x < targetSize; x++) {
         final double rawVal = maskOutput[0][y][x][0];
-        // Sigmoid if logit or raw probability
         final double prob = (rawVal > 1.0 || rawVal < 0.0)
             ? (1.0 / (1.0 + exp(-rawVal)))
             : rawVal;
+        probMap[y][x] = prob;
 
-        if (prob > 0.35) {
+        // Model predicts healthy green leaf tissue as high confidence
+        if (prob >= 0.45) {
+          isHealthyFoliage[y][x] = true;
+          healthyPixels++;
+        }
+      }
+    }
+
+    // Step 2: Build morphological leaf envelope (closes lesion holes & yellow halos inside the leaf)
+    const int dilationRadius = 7;
+    final List<List<bool>> leafEnvelope = List.generate(targetSize, (_) => List.filled(targetSize, false));
+
+    for (int y = 0; y < targetSize; y++) {
+      for (int x = 0; x < targetSize; x++) {
+        if (isHealthyFoliage[y][x]) {
+          final int minY = max(0, y - dilationRadius);
+          final int maxY = min(targetSize - 1, y + dilationRadius);
+          final int minX = max(0, x - dilationRadius);
+          final int maxX = min(targetSize - 1, x + dilationRadius);
+
+          for (int ny = minY; ny <= maxY; ny++) {
+            for (int nx = minX; nx <= maxX; nx++) {
+              leafEnvelope[ny][nx] = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Step 3: Highlight the EFFECTED / DISEASED lesions (lesion holes enclosed within the leaf surface)
+    int diseasePixels = 0;
+
+    for (int y = 0; y < targetSize; y++) {
+      for (int x = 0; x < targetSize; x++) {
+        final pixel = resized.getPixel(x, y);
+        final double prob = probMap[y][x];
+
+        // Is it inside the leaf boundary, but not healthy green leaf?
+        final bool isInsideLeaf = leafEnvelope[y][x];
+        final bool isHealthy = isHealthyFoliage[y][x];
+
+        // Check if pixel has plant/lesion tissue characteristics (not empty white/black background)
+        final int brightness = (pixel.r + pixel.g + pixel.b).toInt();
+        final bool isNotBackground = brightness > 40 && brightness < 720;
+
+        if (isInsideLeaf && !isHealthy && isNotBackground) {
           diseasePixels++;
-          // Vibrant Coral/Red disease highlight overlay with smooth alpha
-          final int alpha = (prob.clamp(0.35, 1.0) * 200).toInt().clamp(120, 230);
+          // Lesion severity intensity based on contrast
+          final double lesionConfidence = (1.0 - prob).clamp(0.5, 1.0);
+          final int alpha = (lesionConfidence * 220).toInt().clamp(140, 230);
+
+          // Highlight lesion in vibrant Coral/Red
           maskImage.setPixelRgba(x, y, 239, 68, 68, alpha);
         } else {
-          // Transparent
+          // Healthy leaf & outside background remain clean and transparent
           maskImage.setPixelRgba(x, y, 0, 0, 0, 0);
         }
       }
     }
 
-    final double affectedArea = (diseasePixels / totalPixels) * 100.0;
+    final int totalLeafPixels = healthyPixels + diseasePixels;
+    final double affectedArea = totalLeafPixels > 0
+        ? (diseasePixels / totalLeafPixels) * 100.0
+        : 0.0;
     final Uint8List maskPngBytes = Uint8List.fromList(img.encodePng(maskImage));
 
     // Determine Severity Level
-    SeverityLevel level = SeverityLevel.mild;
-    if (affectedArea > 30.0) {
+    SeverityLevel level = SeverityLevel.healthy;
+    if (affectedArea > 28.0) {
       level = SeverityLevel.severe;
-    } else if (affectedArea > 12.0) {
+    } else if (affectedArea > 10.0) {
       level = SeverityLevel.moderate;
-    } else if (affectedArea > 0.5) {
+    } else if (affectedArea > 0.8) {
       level = SeverityLevel.mild;
     }
 
     final double displayPercent = affectedArea < 0.1 ? 0.0 : double.parse(affectedArea.toStringAsFixed(1));
-    final int estimatedLesions = (diseasePixels / 150).clamp(1, 45).toInt();
+    final int estimatedLesions = (diseasePixels / 120).clamp(1, 40).toInt();
     final double healthScore = (100.0 - displayPercent).clamp(0.0, 100.0);
 
     return SeverityResult(
       level: level,
       affectedAreaPercentage: displayPercent,
-      totalLesionCount: estimatedLesions,
-      primarySymptom: 'Segmented ${diseaseName.replaceAll('Tomato ', '')} active lesions',
+      totalLesionCount: diseasePixels > 0 ? estimatedLesions : 0,
+      primarySymptom: diseasePixels > 0
+          ? 'Segmented ${diseaseName.replaceAll('Tomato ', '')} active lesions'
+          : 'Foliage appears clear of active necrotic lesions',
       leafTissueHealthScore: '${healthScore.toStringAsFixed(1)} / 100',
       maskImageBytes: maskPngBytes,
     );

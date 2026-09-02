@@ -190,7 +190,7 @@ class LeafDetector {
               ? (1.0 / (1.0 + exp(-rawConf))) 
               : rawConf;
 
-          if (conf >= 0.50) { // Fast, responsive 50% threshold
+          if (conf >= 0.80) { // Fast, responsive 80% threshold
             final double normXc = xc > 1.0 ? (xc / 320.0) : xc;
             final double normYc = yc > 1.0 ? (yc / 320.0) : yc;
             final double normW = w > 1.0 ? (w / 320.0) : w;
